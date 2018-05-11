@@ -5,13 +5,17 @@
 /* global emoji_util: false */
 /* global Mustache: false */
 /* global $: false */
+/* global storage: false */
+/* global Signal: false */
 
 // eslint-disable-next-line func-names
-(function () {
+(function() {
   'use strict';
 
-  const { Signal } = window;
-  const { loadAttachmentData } = window.Signal.Migrations;
+  const {
+    loadAttachmentData,
+    getAbsoluteAttachmentPath,
+  } = window.Signal.Migrations;
 
   window.Whisper = window.Whisper || {};
 
@@ -71,7 +75,10 @@
         const elapsed = (totalTime - remainingTime) / totalTime;
         this.$('.sand').css('transform', `translateY(${elapsed * 100}%)`);
         this.$el.css('display', 'inline-block');
-        this.timeout = setTimeout(this.update.bind(this), Math.max(totalTime / 100, 500));
+        this.timeout = setTimeout(
+          this.update.bind(this),
+          Math.max(totalTime / 100, 500)
+        );
       }
       return this;
     },
@@ -195,9 +202,17 @@
       this.listenTo(this.model, 'change:body', this.render);
       this.listenTo(this.model, 'change:delivered', this.renderDelivered);
       this.listenTo(this.model, 'change:read_by', this.renderRead);
-      this.listenTo(this.model, 'change:expirationStartTimestamp', this.renderExpiring);
+      this.listenTo(
+        this.model,
+        'change:expirationStartTimestamp',
+        this.renderExpiring
+      );
       this.listenTo(this.model, 'change', this.onChange);
-      this.listenTo(this.model, 'change:flags change:group_update', this.renderControl);
+      this.listenTo(
+        this.model,
+        'change:flags change:group_update',
+        this.renderControl
+      );
       this.listenTo(this.model, 'destroy', this.onDestroy);
       this.listenTo(this.model, 'unload', this.onUnload);
       this.listenTo(this.model, 'expired', this.onExpired);
@@ -225,7 +240,7 @@
         this.model.get('errors'),
         this.model.isReplayableError.bind(this.model)
       );
-      _.map(retrys, 'number').forEach((number) => {
+      _.map(retrys, 'number').forEach(number => {
         this.model.resend(number);
       });
     },
@@ -251,7 +266,7 @@
     },
     onExpired() {
       this.$el.addClass('expired');
-      this.$el.find('.bubble').one('webkitAnimationEnd animationend', (e) => {
+      this.$el.find('.bubble').one('webkitAnimationEnd animationend', e => {
         if (e.target === this.$('.bubble')[0]) {
           this.remove();
         }
@@ -279,13 +294,17 @@
       if (this.quoteView) {
         this.quoteView.remove();
       }
+      if (this.contactView) {
+        this.contactView.remove();
+      }
 
       // NOTE: We have to do this in the background (`then` instead of `await`)
       // as our tests rely on `onUnload` synchronously removing the view from
       // the DOM.
       // eslint-disable-next-line more/no-then
-      this.loadAttachmentViews()
-        .then(views => views.forEach(view => view.unload()));
+      this.loadAttachmentViews().then(views =>
+        views.forEach(view => view.unload())
+      );
 
       // No need to handle this one, since it listens to 'unload' itself:
       //   this.timerView
@@ -301,6 +320,7 @@
     onChange() {
       this.renderSent();
       this.renderQuote();
+      this.addId();
     },
     select(e) {
       this.$el.trigger('select', { message: this.model });
@@ -321,7 +341,9 @@
       }
     },
     renderDelivered() {
-      if (this.model.get('delivered')) { this.$el.addClass('delivered'); }
+      if (this.model.get('delivered')) {
+        this.$el.addClass('delivered');
+      }
     },
     renderRead() {
       if (!_.isEmpty(this.model.get('read_by'))) {
@@ -345,7 +367,9 @@
       }
       if (_.size(errors) > 0) {
         if (this.model.isIncoming()) {
-          this.$('.content').text(this.model.getDescription()).addClass('error-message');
+          this.$('.content')
+            .text(this.model.getDescription())
+            .addClass('error-message');
         }
         this.errorIconView = new ErrorIconView({ model: errors[0] });
         this.errorIconView.render().$el.appendTo(this.$('.bubble'));
@@ -354,7 +378,9 @@
         if (!el || el.length === 0) {
           this.$('.inner-bubble').append("<div class='content'></div>");
         }
-        this.$('.content').text(i18n('noContents')).addClass('error-message');
+        this.$('.content')
+          .text(i18n('noContents'))
+          .addClass('error-message');
       }
 
       this.$('.meta .hasRetry').remove();
@@ -417,6 +443,73 @@
       });
       this.$('.inner-bubble').prepend(this.quoteView.el);
     },
+    renderContact() {
+      const contacts = this.model.get('contact');
+      if (!contacts || !contacts.length) {
+        return;
+      }
+      const contact = contacts[0];
+
+      const regionCode = storage.get('regionCode');
+      const { contactSelector } = Signal.Types.Contact;
+
+      const number =
+        contact.number && contact.number[0] && contact.number[0].value;
+      const haveConversation =
+        number && Boolean(window.ConversationController.get(number));
+      const hasLocalSignalAccount = number && haveConversation;
+
+      const onSendMessage = number
+        ? () => {
+            this.model.trigger('open-conversation', number);
+          }
+        : null;
+      const onOpenContact = () => {
+        this.model.trigger('show-contact-detail', contact);
+      };
+
+      const getProps = ({ hasSignalAccount }) => ({
+        contact: contactSelector(contact, {
+          regionCode,
+          getAbsoluteAttachmentPath,
+        }),
+        hasSignalAccount,
+        onSendMessage,
+        onOpenContact,
+      });
+
+      if (this.contactView) {
+        this.contactView.remove();
+        this.contactView = null;
+      }
+
+      this.contactView = new Whisper.ReactWrapperView({
+        className: 'contact-wrapper',
+        Component: window.Signal.Components.EmbeddedContact,
+        props: getProps({
+          hasSignalAccount: hasLocalSignalAccount,
+        }),
+      });
+
+      this.$('.inner-bubble').prepend(this.contactView.el);
+
+      // If we can't verify a signal account locally, we'll go to the Signal Server.
+      if (number && !hasLocalSignalAccount) {
+        // eslint-disable-next-line more/no-then
+        window.textsecure.messaging
+          .getProfile(number)
+          .then(() => {
+            if (!this.contactView) {
+              return;
+            }
+
+            this.contactView.update(getProps({ hasSignalAccount: true }));
+          })
+          .catch(() => {
+            // No account available, or network connectivity problem
+          });
+      }
+    },
     isImageWithoutCaption() {
       const attachments = this.model.get('attachments');
       const body = this.model.get('body');
@@ -439,7 +532,10 @@
       const attachments = this.model.get('attachments');
       const hasAttachments = attachments && attachments.length > 0;
 
-      return this.hasTextContents() || hasAttachments;
+      const contacts = this.model.get('contact');
+      const hasContact = contacts && contacts.length > 0;
+
+      return this.hasTextContents() || hasAttachments || hasContact;
     },
     hasTextContents() {
       const body = this.model.get('body');
@@ -452,6 +548,13 @@
 
       return body || isGroupUpdate || isEndSession || errorsCanBeContents;
     },
+    addId() {
+      // Because we initially render a sent Message before we've roundtripped with the
+      //   database, we don't have its id for that first render. We do get a change event,
+      //   however, and can add the id manually.
+      const { id } = this.model;
+      this.$el.attr('id', id);
+    },
     render() {
       const contact = this.model.isIncoming() ? this.model.getContact() : null;
       const attachments = this.model.get('attachments');
@@ -461,18 +564,24 @@
       const hasAttachments = attachments && attachments.length > 0;
       const hasBody = this.hasTextContents();
 
-      this.$el.html(Mustache.render(_.result(this, 'template', ''), {
-        message: this.model.get('body'),
-        hasBody,
-        timestamp: this.model.get('sent_at'),
-        sender: (contact && contact.getTitle()) || '',
-        avatar: (contact && contact.getAvatar()),
-        profileName: (contact && contact.getProfileName()),
-        innerBubbleClasses: this.isImageWithoutCaption() ? '' : 'with-tail',
-        hoverIcon: !hasErrors,
-        hasAttachments,
-        reply: i18n('replyToMessage'),
-      }, this.render_partials()));
+      this.$el.html(
+        Mustache.render(
+          _.result(this, 'template', ''),
+          {
+            message: this.model.get('body'),
+            hasBody,
+            timestamp: this.model.get('sent_at'),
+            sender: (contact && contact.getTitle()) || '',
+            avatar: contact && contact.getAvatar(),
+            profileName: contact && contact.getProfileName(),
+            innerBubbleClasses: this.isImageWithoutCaption() ? '' : 'with-tail',
+            hoverIcon: !hasErrors,
+            hasAttachments,
+            reply: i18n('replyToMessage'),
+          },
+          this.render_partials()
+        )
+      );
       this.timeStampView.setElement(this.$('.timestamp'));
       this.timeStampView.update();
 
@@ -493,12 +602,15 @@
       this.renderErrors();
       this.renderExpiring();
       this.renderQuote();
+      this.renderContact();
 
       // NOTE: We have to do this in the background (`then` instead of `await`)
       // as our code / Backbone seems to rely on `render` synchronously returning
       // `this` instead of `Promise MessageView` (this):
       // eslint-disable-next-line more/no-then
-      this.loadAttachmentViews().then(views => this.renderAttachmentViews(views));
+      this.loadAttachmentViews().then(views =>
+        this.renderAttachmentViews(views)
+      );
 
       return this;
     },
@@ -523,22 +635,26 @@
       }
 
       const attachments = this.model.get('attachments') || [];
-      const loadedAttachmentViews = Promise.all(attachments.map(attachment =>
-        new Promise(async (resolve) => {
-          const attachmentWithData = await loadAttachmentData(attachment);
-          const view = new Whisper.AttachmentView({
-            model: attachmentWithData,
-            timestamp: this.model.get('sent_at'),
-          });
+      const loadedAttachmentViews = Promise.all(
+        attachments.map(
+          attachment =>
+            new Promise(async resolve => {
+              const attachmentWithData = await loadAttachmentData(attachment);
+              const view = new Whisper.AttachmentView({
+                model: attachmentWithData,
+                timestamp: this.model.get('sent_at'),
+              });
 
-          this.listenTo(view, 'update', () => {
-            // NOTE: Can we do without `updated` flag now that we use promises?
-            view.updated = true;
-            resolve(view);
-          });
+              this.listenTo(view, 'update', () => {
+                // NOTE: Can we do without `updated` flag now that we use promises?
+                view.updated = true;
+                resolve(view);
+              });
 
-          view.render();
-        })));
+              view.render();
+            })
+        )
+      );
 
       // Memoize attachment views to avoid double loading:
       this.loadedAttachmentViews = loadedAttachmentViews;
@@ -550,8 +666,10 @@
     },
     renderAttachmentView(view) {
       if (!view.updated) {
-        throw new Error('Invariant violation:' +
-          ' Cannot render an attachment view that isn’t ready');
+        throw new Error(
+          'Invariant violation:' +
+            ' Cannot render an attachment view that isn’t ready'
+        );
       }
 
       const parent = this.$('.attachments')[0];
@@ -570,4 +688,4 @@
       this.trigger('afterChangeHeight');
     },
   });
-}());
+})();

@@ -1,7 +1,5 @@
-/**
- * @prettier
- */
 import { Attachment } from './Attachment';
+import { Contact } from './Contact';
 import { IndexableBoolean, IndexablePresence } from './IndexedDB';
 
 export type Message = UserMessage | VerifiedChangeMessage;
@@ -24,6 +22,7 @@ export type IncomingMessage = Readonly<
     sourceDevice?: number;
   } & SharedMessageProperties &
     MessageSchemaVersion5 &
+    MessageSchemaVersion6 &
     ExpirationTimerUpdate
 >;
 
@@ -82,5 +81,11 @@ type MessageSchemaVersion5 = Partial<
     hasAttachments: IndexableBoolean;
     hasVisualMediaAttachments: IndexablePresence;
     hasFileAttachments: IndexablePresence;
+  }>
+>;
+
+type MessageSchemaVersion6 = Partial<
+  Readonly<{
+    contact: Array<Contact>;
   }>
 >;

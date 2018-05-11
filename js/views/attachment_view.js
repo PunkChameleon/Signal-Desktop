@@ -2,15 +2,13 @@
 /* global _: false */
 /* global Backbone: false */
 /* global filesize: false */
-/* global moment: false */
 
 /* global i18n: false */
 /* global Signal: false */
-/* global textsecure: false */
 /* global Whisper: false */
 
 // eslint-disable-next-line func-names
-(function () {
+(function() {
   'use strict';
 
   const FileView = Whisper.View.extend({
@@ -63,10 +61,7 @@
   const VideoView = MediaView.extend({ tagName: 'video' });
 
   // Blacklist common file types known to be unsupported in Chrome
-  const unsupportedFileTypes = [
-    'audio/aiff',
-    'video/quicktime',
-  ];
+  const unsupportedFileTypes = ['audio/aiff', 'video/quicktime'];
 
   Whisper.AttachmentView = Backbone.View.extend({
     tagName: 'div',
@@ -103,12 +98,6 @@
 
       this.remove();
     },
-    getFileType() {
-      switch (this.model.contentType) {
-        case 'video/quicktime': return 'mov';
-        default: return this.model.contentType.split('/')[1];
-      }
-    },
     onClick() {
       if (!this.isImage()) {
         this.saveFile();
@@ -116,7 +105,8 @@
       }
 
       const props = {
-        imageURL: this.objectUrl,
+        objectURL: this.objectUrl,
+        contentType: this.model.contentType,
         onSave: () => this.saveFile(),
         // implicit: `close`
       };
@@ -128,17 +118,7 @@
       Signal.Backbone.Views.Lightbox.show(this.lightboxView.el);
     },
     isVoiceMessage() {
-      // eslint-disable-next-line no-bitwise
-      if (this.model.flags & textsecure.protobuf.AttachmentPointer.Flags.VOICE_MESSAGE) {
-        return true;
-      }
-
-      // Support for android legacy voice messages
-      if (this.isAudio() && this.model.fileName === null) {
-        return true;
-      }
-
-      return false;
+      return Signal.Types.Attachment.isVoiceMessage(this.model);
     },
     isAudio() {
       const { contentType } = this.model;
@@ -182,26 +162,13 @@
 
       return i18n('unnamedFile');
     },
-    suggestedName() {
-      if (this.model.fileName) {
-        return this.model.fileName;
-      }
-
-      let suggestion = 'signal';
-      if (this.timestamp) {
-        suggestion += moment(this.timestamp).format('-YYYY-MM-DD-HHmmss');
-      }
-      const fileType = this.getFileType();
-      if (fileType) {
-        suggestion += `.${fileType}`;
-      }
-      return suggestion;
-    },
     saveFile() {
-      const url = window.URL.createObjectURL(this.blob, { type: 'octet/stream' });
-      const a = $('<a>').attr({ href: url, download: this.suggestedName() });
-      a[0].click();
-      window.URL.revokeObjectURL(url);
+      Signal.Types.Attachment.save({
+        attachment: this.model,
+        document,
+        getAbsolutePath: Signal.Migrations.getAbsoluteAttachmentPath,
+        timestamp: this.timestamp,
+      });
     },
     render() {
       if (!this.isImage()) {
@@ -260,4 +227,4 @@
       this.trigger('update');
     },
   });
-}());
+})();

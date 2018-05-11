@@ -1,12 +1,10 @@
-/**
- * @prettier
- */
 import React from 'react';
 
+import { AttachmentType } from './types/AttachmentType';
 import { DocumentListItem } from './DocumentListItem';
-import { ItemClickEvent } from './events/ItemClickEvent';
+import { ItemClickEvent } from './types/ItemClickEvent';
 import { MediaGridItem } from './MediaGridItem';
-import { Message } from './propTypes/Message';
+import { Message } from './types/Message';
 import { missingCaseError } from '../../../util/missingCaseError';
 
 const styles = {
@@ -30,7 +28,7 @@ const styles = {
 interface Props {
   i18n: (value: string) => string;
   header?: string;
-  type: 'media' | 'documents';
+  type: AttachmentType;
   messages: Array<Message>;
   onItemClick?: (event: ItemClickEvent) => void;
 }
@@ -50,7 +48,8 @@ export class AttachmentSection extends React.Component<Props, {}> {
   private renderItems() {
     const { i18n, messages, type } = this.props;
 
-    return messages.map(message => {
+    return messages.map((message, index, array) => {
+      const shouldShowSeparator = index < array.length - 1;
       const { attachments } = message;
       const firstAttachment = attachments[0];
 
@@ -68,11 +67,12 @@ export class AttachmentSection extends React.Component<Props, {}> {
           return (
             <DocumentListItem
               key={message.id}
-              i18n={i18n}
-              fileSize={firstAttachment.size}
               fileName={firstAttachment.fileName}
-              timestamp={message.received_at}
+              fileSize={firstAttachment.size}
+              i18n={i18n}
+              shouldShowSeparator={shouldShowSeparator}
               onClick={onClick}
+              timestamp={message.received_at}
             />
           );
         default:
@@ -82,11 +82,11 @@ export class AttachmentSection extends React.Component<Props, {}> {
   }
 
   private createClickHandler = (message: Message) => () => {
-    const { onItemClick } = this.props;
+    const { onItemClick, type } = this.props;
     if (!onItemClick) {
       return;
     }
 
-    onItemClick({ message });
+    onItemClick({ type, message });
   };
 }

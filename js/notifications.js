@@ -1,141 +1,140 @@
-/*
- * vim: ts=4:sw=4:expandtab
- */
+/* global Backbone: false */
 
-;(function() {
-    'use strict';
-    window.Whisper = window.Whisper || {};
-    const { Settings } = window.Signal.Types;
+/* global ConversationController: false */
+/* global drawAttention: false */
+/* global i18n: false */
+/* global isFocused: false */
+/* global Signal: false */
+/* global storage: false */
+/* global Whisper: false */
 
-    var SETTINGS = {
-        OFF     : 'off',
-        COUNT   : 'count',
-        NAME    : 'name',
-        MESSAGE : 'message'
-    };
+// eslint-disable-next-line func-names
+(function() {
+  'use strict';
 
-    Whisper.Notifications = new (Backbone.Collection.extend({
-        initialize: function() {
-            this.isEnabled = false;
-            this.on('add', this.update);
-            this.on('remove', this.onRemove);
-        },
-        onClick: function(conversationId) {
-            var conversation = ConversationController.get(conversationId);
-            this.trigger('click', conversation);
-        },
-        update: function() {
-            const {isEnabled} = this;
-            const isFocused = window.isFocused();
-            const isAudioNotificationEnabled = storage.get('audio-notification') || false;
-            const isAudioNotificationSupported = Settings.isAudioNotificationSupported();
-            const shouldPlayNotificationSound = isAudioNotificationSupported &&
-                isAudioNotificationEnabled;
-            const numNotifications = this.length;
-            console.log(
-                'Update notifications:',
-                {isFocused, isEnabled, numNotifications, shouldPlayNotificationSound}
-            );
+  window.Whisper = window.Whisper || {};
+  const { Settings } = Signal.Types;
 
-            if (!isEnabled) {
-                return;
-            }
+  const SettingNames = {
+    OFF: 'off',
+    COUNT: 'count',
+    NAME: 'name',
+    MESSAGE: 'message',
+  };
 
-            const hasNotifications = numNotifications > 0;
-            if (!hasNotifications) {
-                return;
-            }
+  Whisper.Notifications = new (Backbone.Collection.extend({
+    initialize() {
+      this.isEnabled = false;
+      this.on('add', this.update);
+      this.on('remove', this.onRemove);
+    },
+    onClick(conversationId) {
+      const conversation = ConversationController.get(conversationId);
+      this.trigger('click', conversation);
+    },
+    update() {
+      const { isEnabled } = this;
+      const isAppFocused = isFocused();
+      const isAudioNotificationEnabled =
+        storage.get('audio-notification') || false;
+      const isAudioNotificationSupported = Settings.isAudioNotificationSupported();
+      const isNotificationGroupingSupported = Settings.isNotificationGroupingSupported();
+      const numNotifications = this.length;
+      const userSetting = this.getUserSetting();
 
-            const isNotificationOmitted = isFocused;
-            if (isNotificationOmitted) {
-                this.clear();
-                return;
-            }
+      const status = Signal.Notifications.getStatus({
+        isAppFocused,
+        isAudioNotificationEnabled,
+        isAudioNotificationSupported,
+        isEnabled,
+        numNotifications,
+        userSetting,
+      });
 
-            var setting = storage.get('notification-setting') || 'message';
-            if (setting === SETTINGS.OFF) {
-                return;
-            }
+      console.log(
+        'Update notifications:',
+        Object.assign({}, status, {
+          isNotificationGroupingSupported,
+        })
+      );
 
-            window.drawAttention();
+      if (status.type !== 'ok') {
+        if (status.shouldClearNotifications) {
+          this.clear();
+        }
 
-            var title;
-            var message;
-            var iconUrl;
+        return;
+      }
 
-            // NOTE: i18n has more complex rules for pluralization than just
-            // distinguishing between zero (0) and other (non-zero),
-            // e.g. Russian:
-            // http://docs.translatehouse.org/projects/localization-guide/en/latest/l10n/pluralforms.html
-            var newMessageCount = [
-                numNotifications,
-                numNotifications === 1 ? i18n('newMessage') : i18n('newMessages')
-            ].join(' ');
+      let title;
+      let message;
+      let iconUrl;
 
-            var last = this.last();
-            switch (this.getSetting()) {
-              case SETTINGS.COUNT:
-                title = 'Signal';
-                message = newMessageCount;
-                break;
-              case SETTINGS.NAME:
-                title = newMessageCount;
-                message = 'Most recent from ' + last.get('title');
-                iconUrl = last.get('iconUrl');
-                break;
-              case SETTINGS.MESSAGE:
-                if (numNotifications === 1) {
-                  title = last.get('title');
-                } else {
-                  title = newMessageCount;
-                }
-                message = last.get('message');
-                iconUrl = last.get('iconUrl');
-                break;
-            }
+      // NOTE: i18n has more complex rules for pluralization than just
+      // distinguishing between zero (0) and other (non-zero),
+      // e.g. Russian:
+      // http://docs.translatehouse.org/projects/localization-guide/en/latest/l10n/pluralforms.html
+      const newMessageCount = [
+        numNotifications,
+        numNotifications === 1 ? i18n('newMessage') : i18n('newMessages'),
+      ].join(' ');
 
-            if (window.config.polyfillNotifications) {
-                window.nodeNotifier.notify({
-                    title: title,
-                    message: message,
-                    sound: false,
-                });
-                window.nodeNotifier.on('click', function(notifierObject, options) {
-                    last.get('conversationId');
-                });
-            } else {
-                var notification = new Notification(title, {
-                    body   : message,
-                    icon   : iconUrl,
-                    tag    : 'signal',
-                    silent : !shouldPlayNotificationSound,
-                });
+      const last = this.last();
+      switch (userSetting) {
+        case SettingNames.COUNT:
+          title = 'Signal';
+          message = newMessageCount;
+          break;
+        case SettingNames.NAME:
+          title = newMessageCount;
+          message = `Most recent from ${last.get('title')}`;
+          iconUrl = last.get('iconUrl');
+          break;
+        case SettingNames.MESSAGE:
+          if (numNotifications === 1) {
+            title = last.get('title');
+          } else {
+            title = newMessageCount;
+          }
+          message = last.get('message');
+          iconUrl = last.get('iconUrl');
+          break;
+        default:
+          console.log(`Error: Unknown user setting: '${userSetting}'`);
+          break;
+      }
 
-                notification.onclick = this.onClick.bind(this, last.get('conversationId'));
-            }
+      drawAttention();
 
-            // We don't want to notify the user about these same messages again
-            this.clear();
-        },
-        getSetting: function() {
-            return storage.get('notification-setting') || SETTINGS.MESSAGE;
-        },
-        onRemove: function() {
-            console.log('remove notification');
-        },
-        clear: function() {
-            console.log('remove all notifications');
-            this.reset([]);
-        },
-        enable: function() {
-            const needUpdate = !this.isEnabled;
-            this.isEnabled = true;
-            if (needUpdate) {
-              this.update();
-            }
-        },
-        disable: function() {
-            this.isEnabled = false;
-        },
-    }))();
+      const notification = new Notification(title, {
+        body: message,
+        icon: iconUrl,
+        tag: isNotificationGroupingSupported ? 'signal' : undefined,
+        silent: !status.shouldPlayNotificationSound,
+      });
+      notification.onclick = () => this.onClick(last.get('conversationId'));
+
+      this.clear();
+    },
+    getUserSetting() {
+      return storage.get('notification-setting') || SettingNames.MESSAGE;
+    },
+    onRemove() {
+      console.log('Remove notification');
+    },
+    clear() {
+      console.log('Remove all notifications');
+      this.reset([]);
+    },
+    enable() {
+      const needUpdate = !this.isEnabled;
+      this.isEnabled = true;
+      if (needUpdate) {
+        this.update();
+      }
+    },
+    disable() {
+      this.isEnabled = false;
+    },
+  }))();
 })();

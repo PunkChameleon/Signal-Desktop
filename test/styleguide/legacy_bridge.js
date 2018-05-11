@@ -30,23 +30,35 @@ window.Signal.Backup = {};
 window.Signal.Crypto = {};
 window.Signal.Logs = {};
 window.Signal.Migrations = {
-  getPlaceholderMigrations: () => [{
-    migrate: (transaction, next) => {
-      console.log('migration version 1');
-      transaction.db.createObjectStore('conversations');
-      next();
+  getPlaceholderMigrations: () => [
+    {
+      migrate: (transaction, next) => {
+        console.log('migration version 1');
+        transaction.db.createObjectStore('conversations');
+        next();
+      },
+      version: 1,
     },
-    version: 1,
-  }, {
-    migrate: (transaction, next) => {
-      console.log('migration version 2');
-      const messages = transaction.db.createObjectStore('messages');
-      messages.createIndex('expires_at', 'expireTimer', { unique: false });
-      next();
+    {
+      migrate: (transaction, next) => {
+        console.log('migration version 2');
+        const messages = transaction.db.createObjectStore('messages');
+        messages.createIndex('expires_at', 'expireTimer', { unique: false });
+        next();
+      },
+      version: 2,
     },
-    version: 2,
-  }],
+    {
+      migrate: (transaction, next) => {
+        console.log('migration version 3');
+        transaction.db.createObjectStore('items');
+        next();
+      },
+      version: 3,
+    },
+  ],
   loadAttachmentData: attachment => Promise.resolve(attachment),
+  getAbsoluteAttachmentPath: path => path,
 };
 
 window.Signal.Components = {};

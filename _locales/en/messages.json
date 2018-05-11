@@ -326,13 +326,17 @@
       "message": "Media",
       "description": "Header of the default pane in the media gallery, showing images and videos"
     },
+    "mediaEmptyState": {
+      "message": "You don’t have any media in this conversation",
+      "description": "Message shown to user in the media gallery when there are no messages with media attachments (images or video)"
+    },
     "documents": {
       "message": "Documents",
       "description": "Header of the secondary pane in the media gallery, showing every non-media attachment"
     },
-    "messageCaption": {
-      "message": "Message caption",
-      "description": "Prefix of attachment alt tags in the media gallery"
+    "documentsEmptyState": {
+      "message": "You don’t have any documents in this conversation",
+      "description": "Message shown to user in the media gallery when there are no messages with document attachments (anything other than images or video)"
     },
     "today": {
       "message": "Today",
@@ -456,6 +460,26 @@
     "selectAContact": {
       "message": "Select a contact or group to start chatting."
     },
+    "sendMessageToContact": {
+      "message": "Send Message",
+      "description": "Shown when you are sent a contact and that contact has a signal account"
+    },
+    "home": {
+      "message": "home",
+      "description": "Shown on contact detail screen as a label for an address/phone/email"
+    },
+    "work": {
+      "message": "work",
+      "description": "Shown on contact detail screen as a label for an address/phone/email"
+    },
+    "mobile": {
+      "message": "mobile",
+      "description": "Shown on contact detail screen as a label for aa phone or email"
+    },
+    "poBox": {
+      "message": "PO Box",
+      "description": "When rendering an address, used to provide context to a post office box"
+    },
     "replyToMessage": {
       "message": "Reply to Message",
       "description": "Shown in triple-dot menu next to message to allow user to start crafting a message with a quotation"
@@ -467,6 +491,10 @@
     "replyingToYou": {
       "message": "Replying to You",
       "description": "Shown in iOS theme when someone else quotes a message from you"
+    },
+    "you": {
+      "message": "You",
+      "description": "In Android theme, shown in quote if you or someone else replies to you"
     },
     "replyingTo": {
       "message": "Replying to $name$",

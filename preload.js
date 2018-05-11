@@ -5,13 +5,9 @@ console.log('preload');
 
 const electron = require('electron');
 
-const Attachment = require('./js/modules/types/attachment');
-const Attachments = require('./app/attachments');
-const Message = require('./js/modules/types/message');
 const { deferredToPromise } = require('./js/modules/deferred_to_promise');
 
 const { app } = electron.remote;
-
 
 window.PROTO_ROOT = 'protos';
 window.config = require('url').parse(window.location.toString(), true).query;
@@ -21,8 +17,7 @@ window.wrapDeferred = deferredToPromise;
 const ipc = electron.ipcRenderer;
 window.config.localeMessages = ipc.sendSync('locale-data');
 
-window.setBadgeCount = count =>
-  ipc.send('set-badge-count', count);
+window.setBadgeCount = count => ipc.send('set-badge-count', count);
 
 window.drawAttention = () => {
   console.log('draw attention');
@@ -44,8 +39,7 @@ window.restart = () => {
   ipc.send('restart');
 };
 
-window.closeAbout = () =>
-  ipc.send('close-about');
+window.closeAbout = () => ipc.send('close-about');
 
 window.updateTrayIcon = unreadCount =>
   ipc.send('update-tray-icon', unreadCount);
@@ -70,11 +64,9 @@ ipc.on('show-settings', () => {
   Whisper.events.trigger('showSettings');
 });
 
-window.addSetupMenuItems = () =>
-  ipc.send('add-setup-menu-items');
+window.addSetupMenuItems = () => ipc.send('add-setup-menu-items');
 
-window.removeSetupMenuItems = () =>
-  ipc.send('remove-setup-menu-items');
+window.removeSetupMenuItems = () => ipc.send('remove-setup-menu-items');
 
 // We pull these dependencies in now, from here, because they have Node.js dependencies
 
@@ -101,13 +93,11 @@ window.emojiData = require('emoji-datasource');
 window.EmojiPanel = require('emoji-panel');
 window.filesize = require('filesize');
 window.libphonenumber = require('google-libphonenumber').PhoneNumberUtil.getInstance();
-window.libphonenumber.PhoneNumberFormat =
-  require('google-libphonenumber').PhoneNumberFormat;
+window.libphonenumber.PhoneNumberFormat = require('google-libphonenumber').PhoneNumberFormat;
 window.loadImage = require('blueimp-load-image');
 
 window.nodeBuffer = Buffer;
 window.nodeFetch = require('node-fetch');
-window.nodeNotifier = require('node-notifier');
 window.ProxyAgent = require('proxy-agent');
 
 // Note: when modifying this file, consider whether our React Components or Backbone Views
@@ -121,10 +111,12 @@ window.React = require('react');
 window.ReactDOM = require('react-dom');
 window.moment = require('moment');
 
-const { setup } = require('./js/modules/i18n');
+const Signal = require('./js/signal');
+const i18n = require('./js/modules/i18n');
+const Attachments = require('./app/attachments');
 
 const { locale, localeMessages } = window.config;
-window.i18n = setup(locale, localeMessages);
+window.i18n = i18n.setup(locale, localeMessages);
 window.moment.updateLocale(locale, {
   relativeTime: {
     s: window.i18n('timestamp_s'),
@@ -134,88 +126,15 @@ window.moment.updateLocale(locale, {
 });
 window.moment.locale(locale);
 
-// ES2015+ modules
-const attachmentsPath = Attachments.getPath(app.getPath('userData'));
-const deleteAttachmentData = Attachments.createDeleter(attachmentsPath);
-const readAttachmentData = Attachments.createReader(attachmentsPath);
-const writeNewAttachmentData = Attachments.createWriterForNew(attachmentsPath);
-const writeExistingAttachmentData = Attachments.createWriterForExisting(attachmentsPath);
+window.Signal = Signal.setup({
+  Attachments,
+  userDataPath: app.getPath('userData'),
+});
 
-const loadAttachmentData = Attachment.loadData(readAttachmentData);
-
-// Injected context functions to keep `Message` agnostic from Electron:
-const upgradeSchemaContext = {
-  writeNewAttachmentData,
-};
-const upgradeMessageSchema = message =>
-  Message.upgradeSchema(message, upgradeSchemaContext);
-
-const { getPlaceholderMigrations } =
-  require('./js/modules/migrations/get_placeholder_migrations');
-const { IdleDetector } = require('./js/modules/idle_detector');
-
-window.Signal = {};
-window.Signal.Backbone = require('./ts/backbone');
+// Pulling these in separately since they access filesystem, electron
 window.Signal.Backup = require('./js/modules/backup');
-window.Signal.Crypto = require('./js/modules/crypto');
-window.Signal.Database = require('./js/modules/database');
 window.Signal.Debug = require('./js/modules/debug');
-window.Signal.HTML = require('./ts/html');
 window.Signal.Logs = require('./js/modules/logs');
-
-// React components
-const { Lightbox } = require('./ts/components/Lightbox');
-const { MediaGallery } =
-  require('./ts/components/conversation/media-gallery/MediaGallery');
-const { Quote } = require('./ts/components/conversation/Quote');
-
-const PropTypesMessage =
-  require('./ts/components/conversation/media-gallery/propTypes/Message');
-
-window.Signal.Components = {
-  Lightbox,
-  MediaGallery,
-  PropTypes: {
-    Message: PropTypesMessage,
-  },
-  Quote,
-};
-
-window.Signal.Migrations = {};
-window.Signal.Migrations.deleteAttachmentData =
-  Attachment.deleteData(deleteAttachmentData);
-window.Signal.Migrations.getPlaceholderMigrations = getPlaceholderMigrations;
-window.Signal.Migrations.writeMessageAttachments =
-  Message.createAttachmentDataWriter(writeExistingAttachmentData);
-window.Signal.Migrations.loadAttachmentData = loadAttachmentData;
-window.Signal.Migrations.loadMessage = Message.createAttachmentLoader(loadAttachmentData);
-window.Signal.Migrations.Migrations0DatabaseWithAttachmentData =
-  require('./js/modules/migrations/migrations_0_database_with_attachment_data');
-window.Signal.Migrations.Migrations1DatabaseWithoutAttachmentData =
-  require('./js/modules/migrations/migrations_1_database_without_attachment_data');
-
-window.Signal.Migrations.upgradeMessageSchema = upgradeMessageSchema;
-window.Signal.OS = require('./js/modules/os');
-window.Signal.Settings = require('./js/modules/settings');
-window.Signal.Startup = require('./js/modules/startup');
-
-window.Signal.Types = {};
-window.Signal.Types.Attachment = Attachment;
-window.Signal.Types.Conversation = require('./ts/types/Conversation');
-window.Signal.Types.Errors = require('./js/modules/types/errors');
-
-window.Signal.Types.Message = Message;
-window.Signal.Types.MIME = require('./ts/types/MIME');
-window.Signal.Types.Settings = require('./js/modules/types/settings');
-window.Signal.Util = require('./ts/util');
-
-window.Signal.Views = {};
-window.Signal.Views.Initialization = require('./js/modules/views/initialization');
-
-window.Signal.Workflow = {};
-window.Signal.Workflow.IdleDetector = IdleDetector;
-window.Signal.Workflow.MessageDataMigrator =
-  require('./js/modules/messages_data_migrator');
 
 // We pull this in last, because the native module involved appears to be sensitive to
 //   /tmp mounted as noexec on Linux.
@@ -229,7 +148,7 @@ if (window.config.environment === 'test') {
     tmp: require('tmp'),
     path: require('path'),
     basePath: __dirname,
-    attachmentsPath,
+    attachmentsPath: window.Signal.Migrations.attachmentsPath,
   };
   /* eslint-enable global-require, import/no-extraneous-dependencies */
 }

@@ -1,9 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import {
-  padStart,
-  sample,
-} from 'lodash';
+import { padStart, sample } from 'lodash';
+import libphonenumber from 'google-libphonenumber';
 
 import _ from 'lodash';
 import moment from 'moment';
@@ -17,12 +15,9 @@ export { _ };
 export { ConversationContext } from './ConversationContext';
 export { BackboneWrapper } from '../components/utility/BackboneWrapper';
 
-// Here we can make things inside Webpack available to Backbone views like preload.js.
-
-import { Quote } from '../components/conversation/Quote';
-import * as HTML from '../html';
-
-import * as MIME from '../../ts/types/MIME';
+// @ts-ignore
+import * as Signal from '../../js/signal';
+import { SignalService } from '../protobuf';
 
 // TypeScript wants two things when you import:
 //   1) a normal typescript file
@@ -58,7 +53,6 @@ const landscapeRedObjectUrl = makeObjectUrl(landscapeRed, 'image/png');
 import portraitTeal from '../../fixtures/50x1000-teal.jpeg';
 const portraitTealObjectUrl = makeObjectUrl(portraitTeal, 'image/png');
 
-
 function makeObjectUrl(data: ArrayBuffer, contentType: string): string {
   const blob = new Blob([data], {
     type: contentType,
@@ -68,7 +62,6 @@ function makeObjectUrl(data: ArrayBuffer, contentType: string): string {
 
 const ourNumber = '+12025559999';
 const groupNumber = '+12025550099';
-
 
 export {
   mp3,
@@ -93,7 +86,6 @@ export {
   groupNumber,
 };
 
-
 // Required, or TypeScript complains about adding keys to window
 const parent = window as any;
 
@@ -107,17 +99,15 @@ import localeMessages from '../../_locales/en/messages.json';
 
 // @ts-ignore
 import { setup } from '../../js/modules/i18n';
+import filesize from 'filesize';
 
 const i18n = setup(locale, localeMessages);
 
-export {
-  theme,
-  locale,
-  i18n,
-};
-
+parent.filesize = filesize;
 
 parent.i18n = i18n;
+parent.React = React;
+parent.ReactDOM = ReactDOM;
 parent.moment = moment;
 
 parent.moment.updateLocale(locale, {
@@ -129,18 +119,29 @@ parent.moment.updateLocale(locale, {
 });
 parent.moment.locale(locale);
 
-parent.React = React;
-parent.ReactDOM = ReactDOM;
+export { theme, locale, i18n };
 
-parent.Signal.HTML = HTML;
-parent.Signal.Types.MIME = MIME;
-parent.Signal.Components = {
-  Quote,
+// Used by signal.js to set up code that deals with message attachments/avatars
+const Attachments = {
+  createAbsolutePathGetter: () => () => '/fake/path',
+  createDeleter: () => async () => undefined,
+  createReader: () => async () => new ArrayBuffer(10),
+  createWriterForExisting: () => async () => '/fake/path',
+  createWriterForNew: () => async () => ({
+    data: new ArrayBuffer(10),
+    path: '/fake/path',
+  }),
+  getPath: (path: string) => path,
 };
+
+parent.Signal = Signal.setup({
+  Attachments,
+  userDataPath: '/',
+});
+parent.SignalService = SignalService;
 
 parent.ConversationController._initialFetchComplete = true;
 parent.ConversationController._initialPromise = Promise.resolve();
-
 
 const COLORS = [
   'red',
@@ -195,14 +196,23 @@ group.contactCollection.add(CONTACTS[0]);
 group.contactCollection.add(CONTACTS[1]);
 group.contactCollection.add(CONTACTS[2]);
 
-export {
-  COLORS,
-  CONTACTS,
-  me,
-  group,
-};
+export { COLORS, CONTACTS, me, group };
 
 parent.textsecure.storage.user.getNumber = () => ourNumber;
+parent.textsecure.messaging = {
+  getProfile: async (phoneNumber: string): Promise<boolean> => {
+    if (parent.ConversationController.get(phoneNumber)) {
+      return true;
+    }
+
+    throw new Error('User does not have Signal account');
+  },
+};
+
+parent.libphonenumber = libphonenumber.PhoneNumberUtil.getInstance();
+parent.libphonenumber.PhoneNumberFormat = libphonenumber.PhoneNumberFormat;
+
+parent.storage.put('regionCode', 'US');
 
 // Telling Lodash to relinquish _ for use by underscore
 // @ts-ignore
