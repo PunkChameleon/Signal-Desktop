@@ -23,6 +23,7 @@ const { LightboxGallery } = require('../ts/components/LightboxGallery');
 const {
   MediaGallery,
 } = require('../ts/components/conversation/media-gallery/MediaGallery');
+const { MessageBody } = require('../ts/components/conversation/MessageBody');
 const { Quote } = require('../ts/components/conversation/Quote');
 
 // Migrations
@@ -50,7 +51,7 @@ const { IdleDetector } = require('./modules/idle_detector');
 const MessageDataMigrator = require('./modules/messages_data_migrator');
 
 exports.setup = (options = {}) => {
-  const { Attachments, userDataPath } = options;
+  const { Attachments, userDataPath, getRegionCode } = options;
 
   const Components = {
     ContactDetail,
@@ -58,6 +59,7 @@ exports.setup = (options = {}) => {
     Lightbox,
     LightboxGallery,
     MediaGallery,
+    MessageBody,
     Types: {
       Message: MediaGalleryMessage,
     },
@@ -84,6 +86,7 @@ exports.setup = (options = {}) => {
     upgradeMessageSchema: message =>
       Message.upgradeSchema(message, {
         writeNewAttachmentData: Attachments.createWriterForNew(attachmentsPath),
+        getRegionCode,
       }),
     writeMessageAttachments: Message.createAttachmentDataWriter(
       Attachments.createWriterForExisting(attachmentsPath)

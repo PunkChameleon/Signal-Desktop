@@ -438,7 +438,7 @@
         className: 'quote-wrapper',
         Component: window.Signal.Components.Quote,
         props: Object.assign({}, props, {
-          text: props.text ? window.emoji.signalReplace(props.text) : null,
+          text: props.text,
         }),
       });
       this.$('.inner-bubble').prepend(this.quoteView.el);
@@ -564,11 +564,13 @@
       const hasAttachments = attachments && attachments.length > 0;
       const hasBody = this.hasTextContents();
 
+      const messageBody = this.model.get('body');
+
       this.$el.html(
         Mustache.render(
           _.result(this, 'template', ''),
           {
-            message: this.model.get('body'),
+            message: Boolean(messageBody),
             hasBody,
             timestamp: this.model.get('sent_at'),
             sender: (contact && contact.getTitle()) || '',
@@ -587,13 +589,19 @@
 
       this.renderControl();
 
-      const body = this.$('.body');
-
-      emoji_util.parse(body);
-
-      if (body.length > 0) {
-        const escapedBody = body.html();
-        body.html(Signal.HTML.render(escapedBody));
+      if (messageBody) {
+        if (this.bodyView) {
+          this.bodyView.remove();
+          this.bodyView = null;
+        }
+        this.bodyView = new Whisper.ReactWrapperView({
+          className: 'body-wrapper',
+          Component: window.Signal.Components.MessageBody,
+          props: {
+            text: messageBody,
+          },
+        });
+        this.$('.body').append(this.bodyView.el);
       }
 
       this.renderSent();
